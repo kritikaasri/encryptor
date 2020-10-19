@@ -10,6 +10,7 @@ import os
 import os.path
 import time
 import csv
+import sys
 from Crypto.Hash import SHA256
 import pandas as pd
 
@@ -54,7 +55,7 @@ def getAllFiles():
     dirs = []
     for dirName, subdirList, fileList in os.walk(dir_path):
         for fname in fileList:
-            if (fname != 'cryp.py' and fname != 'data.csv.enc' and fname!='pwf.txt.enc' and fname!='crup.py'):
+            if (fname != 'cryp.py' and fname != 'data.csv.enc' and fname!='pwf.txt.enc' and fname!='crup.py' and fname!='data.csv' and fname!='pwf.txt'):
                 dirs.append(dirName + "\\" + fname)
         return dirs
     
@@ -72,24 +73,28 @@ qi = b'[EX\xc8\xd5\xbfI{\xa2$\x05(\xd5\x18\xbf\xc0\x85)\x10nc\x94\x02)j\xdf\xcb\
 clear = lambda: os.system('cls')
 
 if os.path.isfile('data.csv.enc'):
+    
     c=0
     decrypt_file("data.csv.enc", qi)
     dkp = pd.read_csv("data.csv")
+    
     while True and c<1:
         c=c+1
         ind=dkp.loc[(dkp['FileName']=='pwf.txt')].index
         ki=dkp.at[ind[0],"Password"]
-        hash_obj=SHA256.new(ki.encode('utf-8'))
-        key=hash_obj.digest()
-        decrypt_file('pwf.txt.enc',ki)
+        key=keygen(ki)
+        decrypt_file('pwf.txt.enc',key)
         password = input("Enter password: ")
         with open("pwf.txt", "r") as f:
             p = f.readlines()
         if p[0]==password:
             encrypt_file("pwf.txt", key)
             break
+        
     if c<=5:
+        
         while True:
+            
             clear()
             print("1. Press '1' to encrypt file.")
             print("2. Press '2' to decrypt file.")
@@ -101,6 +106,7 @@ if os.path.isfile('data.csv.enc'):
             choice = int(input())
             clear()
             df = pd.read_csv("data.csv")
+            
             if choice == 1:
                 fil=str(input("Enter name of file to encrypt: "))
                 if df.loc[(df['FileName']==fil)].shape[0]>0:
@@ -112,10 +118,11 @@ if os.path.isfile('data.csv.enc'):
                     with open('data.csv', 'a')as csvfile:
                         writer = csv.writer(csvfile)
                         writer.writerow((fil,hkey,pas))
+                        
             elif choice == 2:
                 key=qi
                 chances=0
-                fil=input("Enter name of file to decrypt: ")
+                fil=input("Enter name of file to decrypt (without the enc extension): ")
                 if df.loc[(df['FileName']==fil)].shape[0]==0:
                     print("File not encrypted.")
                 else:
@@ -123,22 +130,25 @@ if os.path.isfile('data.csv.enc'):
                     poo=''
                     key=qi
                     while ctr<5:
-                        pw=input('Enter the password. You have ', ctr, ' choices:')
+                        pw=input('Enter the password: ')
                         ctr=ctr+1
                         cond=(df['FileName']==fil)&(df['Password']==pw)
                         if df.loc[cond].shape[0]>0:
                             key=keygen(pw)
                             break
                     if ctr<=5:
-                        decrypt_file(fil,key)
                         data=pd.read_csv("data.csv")
                         hkey=data.loc[(data["FileName"]==fil)].index
                         data.drop(hkey, inplace = True) 
                         data.to_csv("data.csv")
+                        fil=fil+'.enc'
+                        decrypt_file(fil,key)
                     else:
                         print("You've exceeded the number of attempts.")
+                        
             elif choice == 3:
-                if df.shape[0]>0:
+                print(df.shape[0])
+                if df.shape[0]>2:
                     if df.loc[(df['FileName']=='all')].shape[0]>0:
                         print("All files already encrypted once.")
                     else:
@@ -150,6 +160,7 @@ if os.path.isfile('data.csv.enc'):
                     with open('data.csv', 'a')as csvfile:
                         writer = csv.writer(csvfile)
                         writer.writerow(('all',hkey, pw))
+                        
             elif choice == 4:
                 if df.loc[(df['FileName']=='all')].shape[0]>0:
                     key=qi
@@ -160,22 +171,30 @@ if os.path.isfile('data.csv.enc'):
                         cond=(df['FileName']=='all')&(df['Password']==ps)
                         if df.loc[cond].shape[0]>0:
                             key=keygen(ps)
+                            decrypt_all_files(key)
+                            data=pd.read_csv("data.csv")
+                            hkey=data.loc[(data["FileName"]=='all')].index
+                            data.drop(hkey, inplace = True) 
+                            data.to_csv("data.csv")
                             break
-                    if ctr<=5:
-                        decrypt_all_files(key)
-                        data=pd.read_csv("data.csv")
-                        hkey=data.loc[(data["FileName"]=='all')].index
-                        data.drop(hkey, inplace = True) 
-                        data.to_csv("data.csv")
+                    if ctr<=5: 
+                        continue
                     else:
                         print("You've exceeded the number of attempts.")
                 else:
                     print("All files not encrypted.")
+            
             elif choice == 5:
-                with open('data.csv', newline='') as File:  
-                    reader = csv.reader(File)
-                    for row in reader:
-                        print(row)
+                pw=input("Enter password for viewing all the files:")
+                ind=df.loc[(df['FileName']=='viewer')].index
+                ps=df.at[ind[0],'Password']
+                if (pw==ps):
+                    with open('data.csv', newline='') as File:  
+                        reader = csv.reader(File)
+                        for row in reader:
+                            print(row)
+                else:
+                    print("Access denied.")
             elif choice == 6:
                 pw=input('Enter current password: ')
                 ind=df.loc[df['FileName']=='pwf.txt'].index
@@ -197,7 +216,7 @@ if os.path.isfile('data.csv.enc'):
                     encrypt_file('pwf.txt', newk)
             elif choice == 7:
                 encrypt_file('data.csv',qi)
-                exit()
+                sys.exit()
             else:
                 print("Please select a valid option!")
                 
@@ -212,9 +231,11 @@ else:
         else:
             print("Passwords Mismatched!")
     with open("data.csv", "w") as f:
+        viewall=input("Enter password for viewing all the file lock info: ")
         writer = csv.writer(f)
         key=keygen(password)
         writer.writerow(('pwf.txt',key, password))
+        writer.writerow(('viewer',None ,viewall))
     df = pd.read_csv("data.csv", header=None)
     df.to_csv("data.csv", header=["FileName", "Key", "Password"], index=False)
     encrypt_file("data.csv", qi)
